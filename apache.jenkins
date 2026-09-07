@@ -1,0 +1,51 @@
+pipeline {
+    agent { label 'dev-server' }
+
+    stages {
+        stage('Verify Environment') {
+            steps {
+                sh '''
+                    test -d /var/www/jenkins/maracaibo-ambiente || {
+                        echo 'La ruta /var/www/jenkins/maracaibo-ambiente no existe.'
+                        exit 1
+                    }
+                '''
+                // sh 'npm --version'
+            }
+        }
+
+
+        stage('Sync to Development Folder') {
+            steps {
+                sh '''
+                    
+                    if command -v rsync >/dev/null 2>&1; then
+                        rsync -a --delete --exclude='includes/dbconnection.php' ./ /var/www/jenkins/maracaibo-ambiente
+                    else
+                        echo "Es necesario instalar rsync en el host destino"
+                    fi
+
+                    
+                '''
+            }
+        }
+
+/*         stage('Fix Permissions') {
+            steps {
+                // Ensures the www-data user (via the jenkins group) can always read the newly generated files
+                // 750 for directories (read/execute) and 640 for files (read only) keeps it secure
+                sh 'find dist -type d -exec chmod 750 {} +'
+                sh 'find dist -type f -exec chmod 640 {} +'
+            }
+        } */
+    }
+
+    post {
+        success {
+            echo 'Se actualizó correctamente la página en desarrollo de las actividades del IMA'
+        }
+        failure {
+            echo 'Pipeline failed. Check the logs for build or permission issues.'
+        }
+    }
+}

@@ -1,0 +1,61 @@
+pipeline {
+    agent { label 'dev-server' }
+
+    stages {
+        stage('Verify Environment') {
+            steps {
+                sh '''
+                    node -e "const major = Number(process.versions.node.split('.')[0]); if (major < 24) { console.error('Node.js version must be >= 24. Current version: ' + process.version); process.exit(1); } console.log('Node.js version OK: ' + process.version);"
+                '''
+                // sh 'npm --version'
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                // sh 'npm install'
+                sh 'npm ci'
+            }
+        }
+
+        stage('Build Astro') {
+            steps {
+                // Compiles the app directly into your workspace's dist/ folder
+                sh 'npm run build'
+            }
+        }
+
+        stage('Sync to Production Folder') {
+            steps {
+                sh '''
+                    mkdir -p /var/www/turismo
+                    if command -v rsync >/dev/null 2>&1; then
+                        rsync -a --delete dist/ /var/www/turismo/
+                    else
+                        cp -a dist/. /var/www/turismo/
+                    fi
+
+                    test -d /var/www/turismo && [ "$(ls -A /var/www/turismo 2>/dev/null)" ] && rm -rf dist
+                '''
+            }
+        }
+
+/*         stage('Fix Permissions') {
+            steps {
+                // Ensures the www-data user (via the jenkins group) can always read the newly generated files
+                // 750 for directories (read/execute) and 640 for files (read only) keeps it secure
+                sh 'find dist -type d -exec chmod 750 {} +'
+                sh 'find dist -type f -exec chmod 640 {} +'
+            }
+        } */
+    }
+
+    post {
+        success {
+            echo 'Se actualizó correctamente la página en desarrollo de la Dirección de Turismo'
+        }
+        failure {
+            echo 'Pipeline failed. Check the logs for build or permission issues.'
+        }
+    }
+}
